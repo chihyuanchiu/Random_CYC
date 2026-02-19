@@ -1,0 +1,301 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "1561e58c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import numpy as np\n",
+    "import scipy as sp\n",
+    "\n",
+    "import matplotlib.pyplot as plt\n",
+    "import matplotlib.axes as axe\n",
+    "import pandas as pd\n",
+    "import datetime as dt\n",
+    "import gurobipy as gp\n",
+    "from gurobipy import GRB\n",
+    "import cvxpy as cp\n",
+    "import yaml\n",
+    "\n",
+    "import random\n",
+    "from itertools import chain, combinations, tee\n",
+    "import time\n",
+    "\n",
+    "import os"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c8f0483e-47c1-4b5e-ba86-e89caf96ed70",
+   "metadata": {},
+   "source": [
+    "# Functions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "id": "ceddc561-88f3-45af-8b4d-6b307237b638",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def sample_pd_matrix(n, lambda_min = 1E-3, lambda_max = 1.0):\n",
+    "    M = np.random.randn(n, n)\n",
+    "    Q, _ = np.linalg.qr(M)\n",
+    "    eigenvalues = np.random.uniform(lambda_min, lambda_max, n)\n",
+    "    \n",
+    "    return Q @ np.diag(eigenvalues) @ Q.T\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e65c3298-6094-4209-a584-e82f1fabd5b8",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "markdown",
+   "id": "60719deb",
+   "metadata": {},
+   "source": [
+    "# Norm Test"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "id": "50d47cce",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# norm(X, “inf”)\n",
+    "\n",
+    "n = 2\n",
+    "X = cp.Variable((n, n), symmetric = True)\n",
+    "constraints = []\n",
+    "constraints += [X >> 0]\n",
+    "constraints += [X << 0.99 * np.eye(n)]\n",
+    "obj = cp.Maximize(cp.norm(X, \"inf\"))\n",
+    "prob = cp.Problem(obj, constraints)\n",
+    "prob.solve()\n",
+    "\n",
+    "print(\"The optimal value is\", prob.value)\n",
+    "print(\"A solution X is\")\n",
+    "print(X.value)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e0db9092",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# # norm(X, “inf”)\n",
+    "\n",
+    "# n = 2\n",
+    "# X = cp.Variable((n, n), symmetric = True)\n",
+    "# constraints = []\n",
+    "# constraints += [X >> 0]\n",
+    "# constraints += [X << 0.99 * np.eye(n)]\n",
+    "# obj = cp.Maximize(cp.norm(X, 2))\n",
+    "# prob = cp.Problem(obj, constraints)\n",
+    "# prob.solve()\n",
+    "\n",
+    "# print(\"The optimal value is\", prob.value)\n",
+    "# print(\"A solution X is\")\n",
+    "# print(X.value)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "0144b76d-8456-4e83-971c-059a9d253bdf",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "markdown",
+   "id": "1a2b21a4-454e-496b-825c-9a7673c71ecc",
+   "metadata": {},
+   "source": [
+    "# Norm Sampling:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "id": "46bbf9e4-462c-4640-ba92-bd12e55b8f93",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "1.1\n",
+      "0.7810249675906654\n"
+     ]
+    }
+   ],
+   "source": [
+    "A = np.array([[0.6, 0.5], [0.5, -0.6]])\n",
+    "print(np.linalg.matrix_norm(A, ord=np.inf))\n",
+    "print(np.linalg.matrix_norm(A, ord=2))\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 27,
+   "id": "f1b2d30e-0271-4406-a4b4-22dcf662afa6",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([[0.28179281, 0.29464083],\n",
+       "       [0.96900098, 1.16543971],\n",
+       "       [0.98219706, 1.02683539],\n",
+       "       ...,\n",
+       "       [0.87540553, 1.07423154],\n",
+       "       [0.84709714, 0.99038491],\n",
+       "       [0.35487492, 0.39399625]])"
+      ]
+     },
+     "execution_count": 27,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "n = 3\n",
+    "alpha = 0.99\n",
+    "\n",
+    "# Sample N number of PD matrices with eigenvalues 0 <= \\lambda < 1:\n",
+    "\n",
+    "N = 1000\n",
+    "matrix_array = np.zeros((n, n, N))\n",
+    "norms_array = np.zeros((N, 2))\n",
+    "for k in range(N):\n",
+    "    matrix_array[:, :, k] = sample_pd_matrix(n, lambda_min = 1E-3, lambda_max = 1.0)\n",
+    "    norms_array[k, 0] = np.linalg.matrix_norm(matrix_array[:, :, k], ord=2)\n",
+    "    norms_array[k, 1] = np.linalg.matrix_norm(matrix_array[:, :, k], ord=np.inf)\n",
+    "\n",
+    "norms_array"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 32,
+   "id": "cb214b96-53d6-4606-9a87-0ab27ae98490",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([[ 0.7103239 ,  0.18653125,  0.17106163],\n",
+       "       [ 0.18653125,  0.46357232, -0.38184046],\n",
+       "       [ 0.17106163, -0.38184046,  0.52132945]])"
+      ]
+     },
+     "execution_count": 32,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "matrix_array[:, :, -3]\n",
+    "# np.linalg.eig(matrix_array[:, :, -3])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a1e16598-814b-4e11-86b2-b1d8bfb8e6a5",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ed998a07",
+   "metadata": {},
+   "source": [
+    "# Scratch Work"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "28959adb",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([[1., 0.],\n",
+       "       [0., 1.]])"
+      ]
+     },
+     "execution_count": 4,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "np.eye(2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "0fc0d1e6",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a387211e",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "974ab2ee",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.13.5"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
